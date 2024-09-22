@@ -9,6 +9,25 @@ Think a bit about the row counts: how many distinct vendors, product names are t
 How many customers are there (y). 
 Before your final group by you should have the product of those two queries (x*y).  */
 
+WITH cross_joined_data AS (
+  SELECT 
+    vi.vendor_id,
+    vi.product_id,
+    vi.original_price,
+    5 * vi.original_price AS revenue_per_customer
+  FROM 
+    vendor_inventory vi
+  CROSS JOIN 
+    customer c
+)
+SELECT 
+  vendor_id,
+  product_id,
+  SUM(revenue_per_customer) AS total_revenue
+FROM 
+  cross_joined_data
+GROUP BY 
+  vendor_id, product_id;
 
 
 -- INSERT
@@ -22,6 +41,19 @@ Name the timestamp column `snapshot_timestamp`. */
 /*2. Using `INSERT`, add a new row to the product_units table (with an updated timestamp). 
 This can be any product you desire (e.g. add another record for Apple Pie). */
 
+-- Step 1: Create the new table "product_units"
+CREATE TABLE product_units AS
+SELECT 
+    *,  -- Select all columns from the product table
+    CURRENT_TIMESTAMP AS snapshot_timestamp  -- Add a new column for the current timestamp
+FROM 
+    product
+WHERE 
+    product_qty_type = 'unit';
+
+
+INSERT INTO product_units 
+VALUES (682, 'moonshoe', 'medium', 9.99, 'unit',  CURRENT_TIMESTAMP);
 
 
 -- DELETE
@@ -29,7 +61,8 @@ This can be any product you desire (e.g. add another record for Apple Pie). */
 
 HINT: If you don't specify a WHERE clause, you are going to have a bad time.*/
 
-
+DELETE FROM product_units
+WHERE product_name = 'moonshoe'
 
 -- UPDATE
 /* 1.We want to add the current_quantity to the product_units table. 
@@ -49,3 +82,19 @@ Finally, make sure you have a WHERE statement to update the right row,
 When you have all of these components, you can run the update statement. */
 
 
+ALTER TABLE product_units
+ADD current_quantity INT;
+
+
+UPDATE product_units
+SET current_quantity = COALESCE(
+    (SELECT vi.quantity
+     FROM vendor_inventory vi
+     WHERE vi.product_id = product_units.product_id
+     ORDER BY vi.market_date DESC
+     LIMIT 1), 0)
+WHERE EXISTS (
+    SELECT 1
+    FROM vendor_inventory vi
+    WHERE vi.product_id = product_units.product_id
+);
